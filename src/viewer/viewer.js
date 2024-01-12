@@ -25,6 +25,7 @@ import {InputHandler} from "../navigation/InputHandler.js";
 import {NavigationCube} from "./NavigationCube.js";
 import {Compass} from "../utils/Compass.js";
 import {OrbitControls} from "../navigation/OrbitControls.js";
+import {MapControls} from "../navigation/MapControls.js";
 import {FirstPersonControls} from "../navigation/FirstPersonControls.js";
 import {EarthControls} from "../navigation/EarthControls.js";
 import {DeviceOrientationControls} from "../navigation/DeviceOrientationControls.js";
@@ -1132,6 +1133,13 @@ export class Viewer extends EventDispatcher{
 			this.orbitControls.enabled = false;
 			this.orbitControls.addEventListener('start', this.disableAnnotations.bind(this));
 			this.orbitControls.addEventListener('end', this.enableAnnotations.bind(this));
+		}
+
+		{ // create CUSTOM CONTROLS
+			this.mapControls = new MapControls(this);
+			this.mapControls.enabled = false;
+			this.mapControls.addEventListener('start', this.disableAnnotations.bind(this));
+			this.mapControls.addEventListener('end', this.enableAnnotations.bind(this));
 		}
 
 		{ // create EARTH CONTROLS
