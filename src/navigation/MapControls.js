@@ -3,7 +3,7 @@ import {MOUSE} from "../defines.js";
 import {Utils} from "../utils.js";
 import {EventDispatcher} from "../EventDispatcher.js";
 
-export class MapControlsCustom extends EventDispatcher {
+export class MapControls extends EventDispatcher {
   constructor(viewer) {
     super(viewer);
 
@@ -206,6 +206,7 @@ export class MapControlsCustom extends EventDispatcher {
         this.wheelDelta += e.delta;
       } else if (e.delta == -1) {
         this.wheelDelta += e.delta;
+        this.shouldPitchMove = false;
       }
     };
 
@@ -270,21 +271,14 @@ export class MapControlsCustom extends EventDispatcher {
           } else if (
             this.previousDelta < delta &&
             I != null &&
-            I.distance > 300 &&
-            this.viewer.scene.view.pitch < 0
-          ) {
-            this.shouldPitchMove = true;
-            this.wheelDelta += 0.2;
-            this.previousDelta = delta;
-          } else if (
-            this.previousDelta < delta &&
-            this.viewer.scene.view.pitch < 0
+            I.distance > 300
           ) {
             this.wheelDelta += 0.2;
             this.previousDelta = delta;
           } else if (this.previousDelta > delta) {
             this.wheelDelta += -0.2;
             this.previousDelta = delta;
+            this.shouldPitchMove = false;
           }
         } else if (
           (Math.abs(move.x - this.firstPosition.x) > 5 &&
@@ -485,6 +479,14 @@ export class MapControlsCustom extends EventDispatcher {
 
       tween.start();
     }
+  }
+
+  zoomIn() {
+    this.wheelDelta += 1;
+  }
+
+  zoomOut() {
+    this.wheelDelta += -1;
   }
 
   update(delta) {

@@ -1534,9 +1534,13 @@ export class Viewer extends EventDispatcher{
 					screenSize = Utils.projectedRadiusOrtho(radius, viewer.scene.cameraO.projectionMatrix, renderAreaSize.x, renderAreaSize.y);
 				}
 			}
-
 			element.css("left", screenPos.x + "px");
-			element.css("top", screenPos.y + "px");
+			if (annotation.isHighlighted) {
+				// 6 due to the margin top
+				element.css("top", screenPos.y - annotation.elDescription[0].clientHeight - 6 + "px");
+			} else {
+				element.css("top", screenPos.y + "px");
+			}
 			//element.css("display", "block");
 
 			let zIndex = 10000000 - distance * (10000000 / this.scene.cameraP.far);
