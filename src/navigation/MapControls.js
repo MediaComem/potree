@@ -33,7 +33,7 @@ export class MapControls extends EventDispatcher {
 
     this.firstPosition = null;
 
-    this.isDrag = false;
+    this.nbDrag = 0;
 
     this.tweens = [];
 
@@ -74,7 +74,7 @@ export class MapControls extends EventDispatcher {
         this.dispatchEvent({ type: 'start' });
       }
 
-      this.isDrag = true;
+      this.nbDrag += 1;
 
       let camStart = this.camStart;
       let camera = this.scene.getActiveCamera();
@@ -152,19 +152,18 @@ export class MapControls extends EventDispatcher {
         Math.round(this.touch.touches[0].clientY)
       );
       if (tapLen < 500 && tapLen > 0) {
-        if (!this.isDrag) {
+        if (this.nbDrag < 15) {
           this.zoomToLocation(vector, true);
         }
       } else {
         this.timeout = setTimeout(() => {
           clearTimeout(this.timeout);
         }, 500);
-        if (!this.isDrag) {
+        if (this.nbDrag < 15) {
           this.zoomToLocation(vector, false);
         }
       }
       this.lastTap = curTime;
-      this.isDrag = false;
     };
 
     let onTouchUp = (e) => {
@@ -177,6 +176,7 @@ export class MapControls extends EventDispatcher {
       this.pivot = null;
       this.pivotIndicator.visible = false;
       this.firstPosition = null;
+      this.nbDrag = 0;
     };
 
     let scroll = (e) => {
@@ -307,11 +307,11 @@ export class MapControls extends EventDispatcher {
 
     let onClick = (e) => {
       e.preventDefault();
-      if (!this.isDrag) {
+      if (this.nbDrag < 15) {
         let vector = new THREE.Vector2(Math.round(e.x), Math.round(e.y));
         this.zoomToLocation(vector);
       }
-      this.isDrag = false;
+      this.nbDrag = 0;
     };
 
     this.addEventListener('touchstart', onTouchDown);
