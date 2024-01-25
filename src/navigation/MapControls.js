@@ -13,17 +13,23 @@ export class MapControls extends EventDispatcher {
     this.scene = null;
     this.sceneControls = new THREE.Scene();
 
-    this.rotationSpeed = 10;
+    this.rotationSpeed = 5;
 
     this.fadeFactor = 20;
     this.wheelDelta = 0;
     this.zoomDelta = new THREE.Vector3();
+    this.panDelta = new THREE.Vector2(0, 0);
     this.camStart = null;
 
     this.touch = null;
 
+    this.radiusDelta = 0;
+
     this.lastTap = 0;
     this.timeout;
+
+    this.yawDelta = 0;
+		this.pitchDelta = 0;
 
     this.previousTouch = null;
     this.previousDelta = null;
@@ -46,9 +52,6 @@ export class MapControls extends EventDispatcher {
     {
       let sg = new THREE.SphereGeometry(1, 16, 16);
       let sm = new THREE.MeshNormalMaterial();
-      this.pivotIndicator = new THREE.Mesh(sg, sm);
-      this.pivotIndicator.visible = false;
-      this.sceneControls.add(this.pivotIndicator);
     }
 
     let drag = (e) => {
@@ -86,13 +89,13 @@ export class MapControls extends EventDispatcher {
 
       if (e.drag.mouse === MOUSE.LEFT) {
         if (controlDown || cmdDown) {
-          this.moveCameraAngle(
-            view,
-            e.drag.lastDrag.x,
-            e.drag.lastDrag.y,
-            0.5,
-            0.2
-          );
+          let ndrag = {
+            x: e.drag.lastDrag.x / this.renderer.domElement.clientWidth,
+            y: e.drag.lastDrag.y / this.renderer.domElement.clientHeight
+          };
+          this.yawDelta += ndrag.x * this.rotationSpeed;
+          this.pitchDelta += ndrag.y * this.rotationSpeed;
+          this.stopTweens();
         } else {
           this.move(mouse, camStart, camera, view, domElement);
         }
@@ -110,8 +113,6 @@ export class MapControls extends EventDispatcher {
       if (I) {
         this.pivot = I.location;
         this.camStart = this.scene.getActiveCamera().clone();
-        this.pivotIndicator.visible = true;
-        this.pivotIndicator.position.copy(I.location);
       }
     };
 
@@ -140,7 +141,6 @@ export class MapControls extends EventDispatcher {
     let onMouseUp = () => {
       this.camStart = null;
       this.pivot = null;
-      this.pivotIndicator.visible = false;
     };
 
     let detectDoubleTapClosure = () => {
@@ -173,7 +173,6 @@ export class MapControls extends EventDispatcher {
       this.allowedMove = true;
       this.camStart = null;
       this.pivot = null;
-      this.pivotIndicator.visible = false;
       this.firstPosition = null;
       this.nbDrag = 0;
     };
@@ -189,10 +188,15 @@ export class MapControls extends EventDispatcher {
         this.scene.pointclouds,
         { pickClipped: false }
       );
-      if (I)
-        this.pivot = I.location;
-      this.wheelDelta += e.delta;
-    };
+			let resolvedRadius = this.scene.view.radius + this.radiusDelta;
+      if (I && I.distance > 150 && e.delta > 0) {
+        this.radiusDelta += -e.delta * resolvedRadius * 0.1;
+      } else if (e.delta < 0) {
+        this.radiusDelta += -e.delta * resolvedRadius * 0.1;
+      }
+			  
+			this.stopTweens();
+		};
 
     let getCoordinateMoveDrag = (e) => {
       let prev = this.previousTouch;
@@ -217,18 +221,9 @@ export class MapControls extends EventDispatcher {
           Math.abs(move.x - this.firstPosition.x) > 30 ||
           Math.abs(move.y - this.firstPosition.y) > 30
         ) {
-          let prev = this.previousTouch;
+          let prev =  this.previousTouch;
           let curr = e;
 
-          let prevDX = prev.touches[0].pageX - prev.touches[1].pageX;
-          let prevDY = prev.touches[0].pageY - prev.touches[1].pageY;
-          let prevDist = Math.sqrt(prevDX * prevDX + prevDY * prevDY);
-
-          let currDX = curr.touches[0].pageX - curr.touches[1].pageX;
-          let currDY = curr.touches[0].pageY - curr.touches[1].pageY;
-          let currDist = Math.sqrt(currDX * currDX + currDY * currDY);
-
-          let delta = currDist / prevDist;
           let vector = new THREE.Vector2(
             Math.round(this.touch.touches[0].pageX),
             Math.round(this.touch.touches[0].pageY)
@@ -240,40 +235,44 @@ export class MapControls extends EventDispatcher {
             this.scene.pointclouds,
             { pickClipped: false }
           );
-          if (this.previousDelta == null) {
-            this.previousDelta = delta;
-          } else if (
-            this.previousDelta < delta &&
-            I != null &&
-            I.distance > 300
-          ) {
-            this.wheelDelta += 0.2;
-            this.previousDelta = delta;
-          } else if (this.previousDelta > delta) {
-            this.wheelDelta += -0.2;
-            this.previousDelta = delta;
+
+          let prevDX = prev.touches[0].pageX - prev.touches[1].pageX;
+          let prevDY = prev.touches[0].pageY - prev.touches[1].pageY;
+          let prevDist = Math.sqrt(prevDX * prevDX + prevDY * prevDY);
+
+          let currDX = curr.touches[0].pageX - curr.touches[1].pageX;
+          let currDY = curr.touches[0].pageY - curr.touches[1].pageY;
+          let currDist = Math.sqrt(currDX * currDX + currDY * currDY);
+
+          let delta = currDist / prevDist;
+          let resolvedRadius = this.scene.view.radius + this.radiusDelta;
+          let newRadius = resolvedRadius / delta;
+          let radiusMove = newRadius - resolvedRadius;
+          if (I && I.distance > 150 && radiusMove < 0) {
+            this.radiusDelta = radiusMove;
+          } else if (radiusMove > 0) {
+            this.radiusDelta = radiusMove;
           }
+
+          this.stopTweens();
         } else if (
           (Math.abs(move.x - this.firstPosition.x) > 5 &&
             Math.abs(move.x - this.firstPosition.x) < 15) ||
           (Math.abs(move.y - this.firstPosition.y) > 5 &&
             Math.abs(move.y - this.firstPosition.y) < 15)
         ) {
-          let view = this.viewer.scene.view;
-          let prev = this.previousTouch;
-          let curr = e;
-          let prevMeanX = (prev.touches[0].pageX + prev.touches[1].pageX) / 2;
-          let prevMeanY = (prev.touches[0].pageY + prev.touches[1].pageY) / 2;
-
-          let currMeanX = (curr.touches[0].pageX + curr.touches[1].pageX) / 2;
-          let currMeanY = (curr.touches[0].pageY + curr.touches[1].pageY) / 2;
-          this.moveCameraAngle(
-            view,
-            currMeanX - prevMeanX,
-            currMeanY - prevMeanY,
-            0.05,
-            0.02
-          );
+          let prevDrag = {
+            x: this.previousTouch.touches[0].pageX / this.renderer.domElement.clientWidth,
+            y: this.previousTouch.touches[0].pageY / this.renderer.domElement.clientHeight
+          };
+          let curDrag = {
+            x: e.touches[0].pageX / this.renderer.domElement.clientWidth,
+            y: e.touches[0].pageY / this.renderer.domElement.clientHeight
+          };
+      
+          this.yawDelta += (curDrag.x - prevDrag.x) / 10 * this.rotationSpeed;
+          this.pitchDelta += (curDrag.y - prevDrag.y) / 100 * this.rotationSpeed;
+          this.stopTweens();
         }
       }
     };
@@ -304,8 +303,9 @@ export class MapControls extends EventDispatcher {
   }
 
   stop() {
-    this.wheelDelta = 0;
-    this.zoomDelta.set(0, 0, 0);
+    this.yawDelta = 0;
+		this.pitchDelta = 0;
+		this.radiusDelta = 0;
   }
 
   move(mouse, camStart, camera, view, domElement) {
@@ -340,37 +340,6 @@ export class MapControls extends EventDispatcher {
         let speed = view.radius / 2.5;
         this.viewer.setMoveSpeed(speed);
       }
-    }
-  }
-
-  moveCameraAngle(view, xDrag, yDrag, yawSpeed, pitchSpeed) {
-    let ndrag = {
-      x: xDrag / this.renderer.domElement.clientWidth,
-      y: yDrag / this.renderer.domElement.clientHeight
-    };
-
-    let yawDelta = -ndrag.x * this.rotationSpeed * yawSpeed;
-    let pitchDelta = -ndrag.y * this.rotationSpeed * pitchSpeed;
-
-    let originalPitch = view.pitch;
-    let tmpView = view.clone();
-    tmpView.pitch = tmpView.pitch + pitchDelta;
-    pitchDelta = tmpView.pitch - originalPitch;
-
-    let pivotToCam = new THREE.Vector3().subVectors(view.position, this.pivot);
-    let side = view.getSide();
-
-    if (view.pitch + pitchDelta < 0) {
-      pivotToCam.applyAxisAngle(side, pitchDelta);
-    }
-    pivotToCam.applyAxisAngle(new THREE.Vector3(0, 0, 1), yawDelta);
-
-    let newCam = new THREE.Vector3().addVectors(this.pivot, pivotToCam);
-
-    view.position.copy(newCam);
-    view.yaw += yawDelta;
-    if (view.pitch + pitchDelta < 0) {
-      view.pitch += pitchDelta;
     }
   }
 
@@ -456,74 +425,63 @@ export class MapControls extends EventDispatcher {
     this.wheelDelta += -1;
   }
 
+  stopTweens () {
+		this.tweens.forEach(e => e.stop());
+		this.tweens = [];
+	}
+
   update(delta) {
     let view = this.scene.view;
-    let fade = Math.pow(0.5, this.fadeFactor * delta);
-    let progression = 1 - fade;
-    let camera = this.scene.getActiveCamera();
-    // compute zoom
-    if (this.wheelDelta !== 0) {
-      let I = Utils.getMousePointCloudIntersection(
-        this.viewer.inputHandler.mouse,
-        this.scene.getActiveCamera(),
-        this.viewer,
-        this.scene.pointclouds
-      );
 
-      if (I) {
-        let resolvedPos = new THREE.Vector3().addVectors(
-          view.position,
-          this.zoomDelta
-        );
-        let distance = I.location.distanceTo(resolvedPos);
-        let jumpDistance = distance * 0.2 * this.wheelDelta;
-        let targetDir = new THREE.Vector3().subVectors(
-          I.location,
-          view.position
-        );
-        targetDir.normalize();
-        resolvedPos.add(targetDir.multiplyScalar(jumpDistance));
-        this.zoomDelta.subVectors(resolvedPos, view.position);
+    { // apply rotation
+			let progression = Math.min(1, this.fadeFactor * delta);
 
-        {
-          let distance = resolvedPos.distanceTo(I.location);
-          view.radius = distance;
-          let speed = view.radius / 2.5;
-          this.viewer.setMoveSpeed(speed);
-        }
+			let yaw = view.yaw;
+			let pitch = view.pitch;
+			let pivot = view.getPivot();
+
+			yaw -= progression * this.yawDelta;
+			pitch -= progression * this.pitchDelta;
+
+			view.yaw = yaw;
+      if (pitch < -0.025) {
+        view.pitch = pitch;
       }
-    }
+			
+			let V = this.scene.view.direction.multiplyScalar(-view.radius);
+			let position = new THREE.Vector3().addVectors(pivot, V);
 
-    // apply zoom
-    if (this.zoomDelta.length() !== 0) {
-      let p = this.zoomDelta.clone().multiplyScalar(progression);
-      let newPos = new THREE.Vector3().addVectors(view.position, p);
-      view.position.copy(newPos);
-    }
+			view.position.copy(position);
+		}
 
-    if (this.pivotIndicator.visible) {
-      let distance = this.pivotIndicator.position.distanceTo(view.position);
-      let pixelwidth = this.renderer.domElement.clientwidth;
-      let pixelHeight = this.renderer.domElement.clientHeight;
-      let pr = Utils.projectedRadius(
-        1,
-        camera,
-        distance,
-        pixelwidth,
-        pixelHeight
-      );
-      let scale = 10 / pr;
-      this.pivotIndicator.scale.set(scale, scale, scale);
-    }
+    { // apply pan
+			let progression = Math.min(1, this.fadeFactor * delta);
+			let panDistance = progression * view.radius * 3;
 
-    // block z element to not go behind the scene
-    if (this.scene.view.position.z < this.minZPosition) {
-      this.scene.view.position.z = this.minZPosition;
-    }
-    // decelerate over time
-    {
-      this.zoomDelta.multiplyScalar(fade);
-      this.wheelDelta = 0;
+			let px = -this.panDelta.x * panDistance;
+			let py = this.panDelta.y * panDistance;
+
+			view.pan(px, py);
+		}
+
+    { // apply zoom
+			let progression = Math.min(1, this.fadeFactor * delta);
+			let radius = view.radius + progression * this.radiusDelta;
+
+			let V = view.direction.multiplyScalar(-radius);
+			let position = new THREE.Vector3().addVectors(view.getPivot(), V);
+			view.radius = radius;
+
+			view.position.copy(position);
+		}
+
+    { // decelerate over time
+			let progression = Math.min(1, this.fadeFactor * delta);
+      let attenuation = Math.max(0, 1 - this.fadeFactor * delta);
+
+			this.yawDelta *= attenuation;
+			this.pitchDelta *= attenuation;
+			this.radiusDelta -= progression * this.radiusDelta;
     }
   }
 }
