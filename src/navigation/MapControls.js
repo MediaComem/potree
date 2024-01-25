@@ -29,7 +29,6 @@ export class MapControls extends EventDispatcher {
     this.previousDelta = null;
     this.allowedMove = true;
     this.pitchMoveAnimation = null;
-    this.shouldPitchMove = false;
 
     this.firstPosition = null;
 
@@ -180,34 +179,19 @@ export class MapControls extends EventDispatcher {
     };
 
     let scroll = (e) => {
-      let vector = new THREE.Vector2(
-        Math.round(this.renderer.domElement.clientWidth / 2),
-        Math.round(this.renderer.domElement.clientHeight / 2)
-      );
-      let I = Utils.getMousePointCloudIntersection(
-        vector,
+      const I = Utils.getMousePointCloudIntersection(
+        new THREE.Vector2(
+          Math.round(this.renderer.domElement.clientWidth / 2),
+          Math.round(this.renderer.domElement.clientHeight / 2)
+        ),
         this.scene.getActiveCamera(),
         this.viewer,
         this.scene.pointclouds,
         { pickClipped: false }
       );
-      if (I != null && I.distance > 200 && e.delta == 1) {
-        this.wheelDelta += e.delta;
-      } else if (
-        I != null &&
-        I.distance < 200 &&
-        I.distance > 150 &&
-        this.viewer.scene.view.pitch < 0 &&
-        e.delta == 1
-      ) {
-        this.shouldPitchMove = true;
-        this.wheelDelta += e.delta;
-      } else if (I == null) {
-        this.wheelDelta += e.delta;
-      } else if (e.delta == -1) {
-        this.wheelDelta += e.delta;
-        this.shouldPitchMove = false;
-      }
+      if (I)
+        this.pivot = I.location;
+      this.wheelDelta += e.delta;
     };
 
     let getCoordinateMoveDrag = (e) => {
@@ -261,16 +245,6 @@ export class MapControls extends EventDispatcher {
           } else if (
             this.previousDelta < delta &&
             I != null &&
-            I.distance < 300 &&
-            I.distance > 200 &&
-            this.viewer.scene.view.pitch < 0
-          ) {
-            this.shouldPitchMove = true;
-            this.wheelDelta += 0.2;
-            this.previousDelta = delta;
-          } else if (
-            this.previousDelta < delta &&
-            I != null &&
             I.distance > 300
           ) {
             this.wheelDelta += 0.2;
@@ -278,7 +252,6 @@ export class MapControls extends EventDispatcher {
           } else if (this.previousDelta > delta) {
             this.wheelDelta += -0.2;
             this.previousDelta = delta;
-            this.shouldPitchMove = false;
           }
         } else if (
           (Math.abs(move.x - this.firstPosition.x) > 5 &&
@@ -385,18 +358,12 @@ export class MapControls extends EventDispatcher {
     pitchDelta = tmpView.pitch - originalPitch;
 
     let pivotToCam = new THREE.Vector3().subVectors(view.position, this.pivot);
-    let pivotToCamTarget = new THREE.Vector3().subVectors(
-      view.getPivot(),
-      this.pivot
-    );
     let side = view.getSide();
 
     if (view.pitch + pitchDelta < 0) {
       pivotToCam.applyAxisAngle(side, pitchDelta);
-      pivotToCamTarget.applyAxisAngle(side, pitchDelta);
     }
     pivotToCam.applyAxisAngle(new THREE.Vector3(0, 0, 1), yawDelta);
-    pivotToCamTarget.applyAxisAngle(new THREE.Vector3(0, 0, 1), yawDelta);
 
     let newCam = new THREE.Vector3().addVectors(this.pivot, pivotToCam);
 
@@ -494,7 +461,6 @@ export class MapControls extends EventDispatcher {
     let fade = Math.pow(0.5, this.fadeFactor * delta);
     let progression = 1 - fade;
     let camera = this.scene.getActiveCamera();
-
     // compute zoom
     if (this.wheelDelta !== 0) {
       let I = Utils.getMousePointCloudIntersection(
@@ -516,7 +482,6 @@ export class MapControls extends EventDispatcher {
           view.position
         );
         targetDir.normalize();
-
         resolvedPos.add(targetDir.multiplyScalar(jumpDistance));
         this.zoomDelta.subVectors(resolvedPos, view.position);
 
@@ -534,14 +499,6 @@ export class MapControls extends EventDispatcher {
       let p = this.zoomDelta.clone().multiplyScalar(progression);
       let newPos = new THREE.Vector3().addVectors(view.position, p);
       view.position.copy(newPos);
-      if (this.shouldPitchMove) {
-        if (this.viewer.scene.view.pitch > -0.1) {
-          this.shouldPitchMove = false;
-          this.viewer.scene.view.pitch = -0.1;
-        } else {
-          this.viewer.scene.view.pitch += 0.01;
-        }
-      }
     }
 
     if (this.pivotIndicator.visible) {
