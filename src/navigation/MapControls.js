@@ -178,20 +178,10 @@ export class MapControls extends EventDispatcher {
     };
 
     let scroll = (e) => {
-      const I = Utils.getMousePointCloudIntersection(
-        new THREE.Vector2(
-          Math.round(this.renderer.domElement.clientWidth / 2),
-          Math.round(this.renderer.domElement.clientHeight / 2)
-        ),
-        this.scene.getActiveCamera(),
-        this.viewer,
-        this.scene.pointclouds,
-        { pickClipped: false }
-      );
 			let resolvedRadius = this.scene.view.radius + this.radiusDelta;
-      if (I && I.distance > 150 && e.delta > 0) {
+      if (this.scene.view.position.z > 450 && e.delta > 0) {
         this.radiusDelta += -e.delta * resolvedRadius * 0.1;
-      } else if (e.delta < 0) {
+      } else if (this.scene.view.position.z < 3000 && e.delta < 0) {
         this.radiusDelta += -e.delta * resolvedRadius * 0.1;
       }
 			  
@@ -248,9 +238,9 @@ export class MapControls extends EventDispatcher {
           let resolvedRadius = this.scene.view.radius + this.radiusDelta;
           let newRadius = resolvedRadius / delta;
           let radiusMove = newRadius - resolvedRadius;
-          if (I && I.distance > 150 && radiusMove < 0) {
+          if (this.scene.view.position.z > 450 && radiusMove < 0) {
             this.radiusDelta = radiusMove;
-          } else if (radiusMove > 0) {
+          } else if (this.scene.view.position.z < 3000 && radiusMove > 0) {
             this.radiusDelta = radiusMove;
           }
 
