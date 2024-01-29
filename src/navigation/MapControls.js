@@ -179,12 +179,7 @@ export class MapControls extends EventDispatcher {
 
     let scroll = (e) => {
 			let resolvedRadius = this.scene.view.radius + this.radiusDelta;
-      if (this.scene.view.position.z > 450 && e.delta > 0) {
-        this.radiusDelta += -e.delta * resolvedRadius * 0.1;
-      } else if (this.scene.view.position.z < 3000 && e.delta < 0) {
-        this.radiusDelta += -e.delta * resolvedRadius * 0.1;
-      }
-			  
+      this.radiusDelta += -e.delta * resolvedRadius * 0.1;       
 			this.stopTweens();
 		};
 
@@ -218,13 +213,6 @@ export class MapControls extends EventDispatcher {
             Math.round(this.touch.touches[0].pageX),
             Math.round(this.touch.touches[0].pageY)
           );
-          let I = Utils.getMousePointCloudIntersection(
-            vector,
-            this.scene.getActiveCamera(),
-            this.viewer,
-            this.scene.pointclouds,
-            { pickClipped: false }
-          );
 
           let prevDX = prev.touches[0].pageX - prev.touches[1].pageX;
           let prevDY = prev.touches[0].pageY - prev.touches[1].pageY;
@@ -238,12 +226,7 @@ export class MapControls extends EventDispatcher {
           let resolvedRadius = this.scene.view.radius + this.radiusDelta;
           let newRadius = resolvedRadius / delta;
           let radiusMove = newRadius - resolvedRadius;
-          if (this.scene.view.position.z > 450 && radiusMove < 0) {
-            this.radiusDelta = radiusMove;
-          } else if (this.scene.view.position.z < 3000 && radiusMove > 0) {
-            this.radiusDelta = radiusMove;
-          }
-
+          this.radiusDelta = radiusMove;p();
           this.stopTweens();
         } else if (
           (Math.abs(move.x - this.firstPosition.x) > 5 &&
@@ -434,7 +417,7 @@ export class MapControls extends EventDispatcher {
 			pitch -= progression * this.pitchDelta;
 
 			view.yaw = yaw;
-      if (pitch < -0.025) {
+      if (pitch < -0.035) {
         view.pitch = pitch;
       }
 			
@@ -461,8 +444,10 @@ export class MapControls extends EventDispatcher {
 			let V = view.direction.multiplyScalar(-radius);
 			let position = new THREE.Vector3().addVectors(view.getPivot(), V);
 			view.radius = radius;
-
-			view.position.copy(position);
+      if (this.scene.pointclouds != undefined && this.scene.pointclouds[0] != undefined && !this.scene.pointclouds[0].intersectsPoint(position)) {
+        view.position.copy(position);
+      }
+			
 		}
 
     { // decelerate over time
