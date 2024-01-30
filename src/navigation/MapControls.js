@@ -226,7 +226,7 @@ export class MapControls extends EventDispatcher {
           let resolvedRadius = this.scene.view.radius + this.radiusDelta;
           let newRadius = resolvedRadius / delta;
           let radiusMove = newRadius - resolvedRadius;
-          this.radiusDelta = radiusMove;p();
+          this.radiusDelta = radiusMove;
           this.stopTweens();
         } else if (
           (Math.abs(move.x - this.firstPosition.x) > 5 &&
@@ -304,7 +304,6 @@ export class MapControls extends EventDispatcher {
       let movedBy = new THREE.Vector3().subVectors(I, this.pivot);
 
       let newCamPos = camStart.position.clone().sub(movedBy);
-
       view.position.copy(newCamPos);
 
       {
@@ -423,8 +422,9 @@ export class MapControls extends EventDispatcher {
 			
 			let V = this.scene.view.direction.multiplyScalar(-view.radius);
 			let position = new THREE.Vector3().addVectors(pivot, V);
-
-			view.position.copy(position);
+      if (this.scene.pointclouds != undefined && this.scene.pointclouds[0] != undefined && !this.scene.pointclouds[0].intersectsPoint(position)) {
+        view.position.copy(position);
+      }
 		}
 
     { // apply pan
@@ -434,7 +434,12 @@ export class MapControls extends EventDispatcher {
 			let px = -this.panDelta.x * panDistance;
 			let py = this.panDelta.y * panDistance;
 
+      let oldPosition = view.position.clone();
 			view.pan(px, py);
+      if (this.scene.pointclouds != undefined && this.scene.pointclouds[0] != undefined && !this.scene.pointclouds[0].intersectsPoint(view.position)) {
+        view.position.copy(oldPosition);
+      }
+
 		}
 
     { // apply zoom
