@@ -426,6 +426,8 @@ export class MapControls extends EventDispatcher {
 			let position = new THREE.Vector3().addVectors(pivot, V);
       if (this.scene.pointclouds != undefined && this.scene.pointclouds[0] != undefined && !this.scene.pointclouds[0].intersectsPoint(position)) {
         view.position.copy(position);
+      } else {
+        this.stop();
       }
 		}
 
@@ -438,7 +440,7 @@ export class MapControls extends EventDispatcher {
 
       let oldPosition = view.position.clone();
 			view.pan(px, py);
-      if (this.scene.pointclouds != undefined && this.scene.pointclouds[0] != undefined && !this.scene.pointclouds[0].intersectsPoint(view.position)) {
+      if (this.scene.pointclouds != undefined && this.scene.pointclouds[0] != undefined && this.scene.pointclouds[0].intersectsPoint(view.position)) {
         view.position.copy(oldPosition);
       }
 
@@ -453,6 +455,8 @@ export class MapControls extends EventDispatcher {
 			view.radius = radius;
       if (this.scene.pointclouds != undefined && this.scene.pointclouds[0] != undefined && !this.scene.pointclouds[0].intersectsPoint(position)) {
         view.position.copy(position);
+      } else {
+        this.stop();
       }
 			
 		}
