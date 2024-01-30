@@ -15,6 +15,8 @@ export class MapControls extends EventDispatcher {
 
     this.rotationSpeed = 5;
 
+    this.minZoom = 10000;
+
     this.fadeFactor = 20;
     this.wheelDelta = 0;
     this.zoomDelta = new THREE.Vector3();
@@ -42,17 +44,10 @@ export class MapControls extends EventDispatcher {
 
     this.tweens = [];
 
-    this.minZPosition = 300;
-
     this.keys = {
       CMD: [91, 224],
       CTRL: [17]
     };
-
-    {
-      let sg = new THREE.SphereGeometry(1, 16, 16);
-      let sm = new THREE.MeshNormalMaterial();
-    }
 
     let drag = (e) => {
       if (e.type !== 'drag') {
@@ -179,7 +174,10 @@ export class MapControls extends EventDispatcher {
 
     let scroll = (e) => {
 			let resolvedRadius = this.scene.view.radius + this.radiusDelta;
-      this.radiusDelta += -e.delta * resolvedRadius * 0.1;       
+      this.radiusDelta += -e.delta * resolvedRadius * 0.1;  
+      if (this.scene.view.position.z >= this.minZoom && e.delta < 0) {
+        this.stop();
+      }
 			this.stopTweens();
 		};
 
@@ -209,11 +207,6 @@ export class MapControls extends EventDispatcher {
           let prev =  this.previousTouch;
           let curr = e;
 
-          let vector = new THREE.Vector2(
-            Math.round(this.touch.touches[0].pageX),
-            Math.round(this.touch.touches[0].pageY)
-          );
-
           let prevDX = prev.touches[0].pageX - prev.touches[1].pageX;
           let prevDY = prev.touches[0].pageY - prev.touches[1].pageY;
           let prevDist = Math.sqrt(prevDX * prevDX + prevDY * prevDY);
@@ -227,6 +220,9 @@ export class MapControls extends EventDispatcher {
           let newRadius = resolvedRadius / delta;
           let radiusMove = newRadius - resolvedRadius;
           this.radiusDelta = radiusMove;
+          if (this.scene.view.position.z >= this.minZoom && radiusMove < 0) {
+            this.stop();
+          }
           this.stopTweens();
         } else if (
           (Math.abs(move.x - this.firstPosition.x) > 5 &&
@@ -275,10 +271,16 @@ export class MapControls extends EventDispatcher {
     this.scene = scene;
   }
 
+  setMinZoom(z) {
+    this.minZoom = z;
+  }
+
+
   stop() {
     this.yawDelta = 0;
 		this.pitchDelta = 0;
 		this.radiusDelta = 0;
+    this.panDelta.set(0, 0);
   }
 
   move(mouse, camStart, camera, view, domElement) {
