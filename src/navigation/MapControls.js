@@ -143,15 +143,11 @@ export class MapControls extends EventDispatcher {
       this.camStart = null;
       this.pivot = null;
       this.firstPosition = null;
-      this.nbDrag = 0;
     };
 
     let scroll = (e) => {
 			let resolvedRadius = this.scene.view.radius + this.radiusDelta;
       this.radiusDelta += -e.delta * resolvedRadius * 0.1;  
-      if (this.scene.view.position.z >= this.minZoom && e.delta < 0) {
-        this.stop();
-      }
 			this.stopTweens();
 		};
 
@@ -173,6 +169,9 @@ export class MapControls extends EventDispatcher {
     this.addEventListener('mouseup', onMouseUp);
 
     this.renderer.domElement.addEventListener('click', onClick, false);
+    this.viewer.addEventListener('focusing_finished', () => {
+      this.minZoom = this.scene.view.position.z;
+    })
   }
 
   setScene(scene) {
@@ -283,7 +282,7 @@ export class MapControls extends EventDispatcher {
         let t = value.x;
         this.scene.view.position.x = (1 - t) * startPos.x + t * targetPos.x;
         this.scene.view.position.y = (1 - t) * startPos.y + t * targetPos.y;
-        if (shouldZoom) {
+        if (shouldZoom && !this.scene.pointclouds[0].intersectsPoint(targetPos)) {
           this.scene.view.position.z = (1 - t) * startPos.z + t * targetPos.z;
         }
 
@@ -337,8 +336,11 @@ export class MapControls extends EventDispatcher {
 
 			let V = view.direction.multiplyScalar(-radius);
 			let position = new THREE.Vector3().addVectors(view.getPivot(), V);
-			view.radius = radius;
-      if (this.scene.pointclouds != undefined && this.scene.pointclouds[0] != undefined && !this.scene.pointclouds[0].intersectsPoint(position)) {
+      if (this.radiusDelta < 0 && view.radius > 1 && this.scene.pointclouds != undefined && this.scene.pointclouds[0] != undefined && !this.scene.pointclouds[0].intersectsPoint(position)) {
+        view.radius = radius;
+        view.position.copy(position);
+      } else if (this.radiusDelta > 0 && position.z < this.minZoom) {
+        view.radius = radius;
         view.position.copy(position);
       } else {
         this.stop();
@@ -353,6 +355,9 @@ export class MapControls extends EventDispatcher {
 			this.yawDelta *= attenuation;
 			this.pitchDelta *= attenuation;
 			this.radiusDelta -= progression * this.radiusDelta;
+      if (Math.abs(this.radiusDelta) < 0.01) {
+        this.stop();
+      }
     }
   }
 }
