@@ -342,10 +342,7 @@ export class MapControls extends EventDispatcher {
       } else if (this.radiusDelta > 0 && position.z < this.minZoom) {
         view.radius = radius;
         view.position.copy(position);
-      } else {
-        this.stop();
       }
-			
 		}
 
     { // decelerate over time
@@ -355,7 +352,7 @@ export class MapControls extends EventDispatcher {
 			this.yawDelta *= attenuation;
 			this.pitchDelta *= attenuation;
 			this.radiusDelta -= progression * this.radiusDelta;
-      if (Math.abs(this.radiusDelta) < 0.01) {
+      if (Math.abs(this.radiusDelta) < 0.1) {
         this.stop();
       }
     }
