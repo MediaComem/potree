@@ -120,7 +120,6 @@ export class MapControls extends EventDispatcher {
       if (e.touches.length === 2) {
         this.previousTouch = e;
         this.allowedMove = false;
-        this.firstPosition = getCoordinateMoveDrag(e);
       }
       let vector = new THREE.Vector2(
         Math.round(e.touches[0].clientX),
@@ -138,32 +137,7 @@ export class MapControls extends EventDispatcher {
       this.pivot = null;
     };
 
-    let detectDoubleTapClosure = () => {
-      const curTime = new Date().getTime();
-      const tapLen = curTime - this.lastTap;
-      let vector = new THREE.Vector2(
-        Math.round(this.touch.touches[0].clientX),
-        Math.round(this.touch.touches[0].clientY)
-      );
-      if (tapLen < 500 && tapLen > 0) {
-        if (this.nbDrag < 15) {
-          this.zoomToLocation(vector, true);
-        }
-      } else {
-        this.timeout = setTimeout(() => {
-          clearTimeout(this.timeout);
-        }, 500);
-        if (this.nbDrag < 15) {
-          this.zoomToLocation(vector, false);
-        }
-      }
-      this.lastTap = curTime;
-    };
-
     let onTouchUp = (e) => {
-      if (this.touch.touches.length == 1) {
-        detectDoubleTapClosure(e);
-      }
       this.previousTouch = e;
       this.allowedMove = true;
       this.camStart = null;
@@ -181,71 +155,6 @@ export class MapControls extends EventDispatcher {
 			this.stopTweens();
 		};
 
-    let getCoordinateMoveDrag = (e) => {
-      let prev = this.previousTouch;
-      let curr = e;
-
-      let prevDX = Math.abs(prev.touches[0].pageX - prev.touches[1].pageX);
-      let prevDY = Math.abs(prev.touches[0].pageY - prev.touches[1].pageY);
-
-      let currDX = Math.abs(curr.touches[0].pageX - curr.touches[1].pageX);
-      let currDY = Math.abs(curr.touches[0].pageY - curr.touches[1].pageY);
-
-      return {
-        x: Math.abs(currDX + prevDX) / 2,
-        y: Math.abs(currDY + prevDY) / 2
-      };
-    };
-
-    let touchemove = (e) => {
-      if (e.touches.length === 2) {
-        let move = getCoordinateMoveDrag(e);
-        if (
-          Math.abs(move.x - this.firstPosition.x) > 30 ||
-          Math.abs(move.y - this.firstPosition.y) > 30
-        ) {
-          let prev =  this.previousTouch;
-          let curr = e;
-
-          let prevDX = prev.touches[0].pageX - prev.touches[1].pageX;
-          let prevDY = prev.touches[0].pageY - prev.touches[1].pageY;
-          let prevDist = Math.sqrt(prevDX * prevDX + prevDY * prevDY);
-
-          let currDX = curr.touches[0].pageX - curr.touches[1].pageX;
-          let currDY = curr.touches[0].pageY - curr.touches[1].pageY;
-          let currDist = Math.sqrt(currDX * currDX + currDY * currDY);
-
-          let delta = currDist / prevDist;
-          let resolvedRadius = this.scene.view.radius + this.radiusDelta;
-          let newRadius = resolvedRadius / delta;
-          let radiusMove = newRadius - resolvedRadius;
-          this.radiusDelta = radiusMove;
-          if (this.scene.view.position.z >= this.minZoom && radiusMove < 0) {
-            this.stop();
-          }
-          this.stopTweens();
-        } else if (
-          (Math.abs(move.x - this.firstPosition.x) > 5 &&
-            Math.abs(move.x - this.firstPosition.x) < 15) ||
-          (Math.abs(move.y - this.firstPosition.y) > 5 &&
-            Math.abs(move.y - this.firstPosition.y) < 15)
-        ) {
-          let prevDrag = {
-            x: this.previousTouch.touches[0].pageX / this.renderer.domElement.clientWidth,
-            y: this.previousTouch.touches[0].pageY / this.renderer.domElement.clientHeight
-          };
-          let curDrag = {
-            x: e.touches[0].pageX / this.renderer.domElement.clientWidth,
-            y: e.touches[0].pageY / this.renderer.domElement.clientHeight
-          };
-      
-          this.yawDelta += (curDrag.x - prevDrag.x) / 10 * this.rotationSpeed;
-          this.pitchDelta += (curDrag.y - prevDrag.y) / 100 * this.rotationSpeed;
-          this.stopTweens();
-        }
-      }
-    };
-
     let onClick = (e) => {
       e.preventDefault();
       if (this.nbDrag < 15) {
@@ -257,7 +166,6 @@ export class MapControls extends EventDispatcher {
 
     this.addEventListener('touchstart', onTouchDown);
     this.addEventListener('touchend', onTouchUp);
-    this.addEventListener('touchmove', touchemove);
     this.addEventListener('drag', drag);
     this.addEventListener('drop', drop);
     this.addEventListener('mousewheel', scroll);
@@ -274,7 +182,6 @@ export class MapControls extends EventDispatcher {
   setMinZoom(z) {
     this.minZoom = z;
   }
-
 
   stop() {
     this.yawDelta = 0;
@@ -355,6 +262,7 @@ export class MapControls extends EventDispatcher {
       I.location,
       d.multiplyScalar(targetRadius)
     );
+    cameraTargetPosition.z = this.scene.view.position.z / 2;
 
     let animationDuration = 600;
     let easing = TWEEN.Easing.Quartic.Out;
@@ -391,14 +299,6 @@ export class MapControls extends EventDispatcher {
     }
   }
 
-  zoomIn() {
-    this.wheelDelta += 1;
-  }
-
-  zoomOut() {
-    this.wheelDelta += -1;
-  }
-
   stopTweens () {
 		this.tweens.forEach(e => e.stop());
 		this.tweens = [];
@@ -429,21 +329,6 @@ export class MapControls extends EventDispatcher {
       } else {
         this.stop();
       }
-		}
-
-    { // apply pan
-			let progression = Math.min(1, this.fadeFactor * delta);
-			let panDistance = progression * view.radius * 3;
-
-			let px = -this.panDelta.x * panDistance;
-			let py = this.panDelta.y * panDistance;
-
-      let oldPosition = view.position.clone();
-			view.pan(px, py);
-      if (this.scene.pointclouds != undefined && this.scene.pointclouds[0] != undefined && this.scene.pointclouds[0].intersectsPoint(view.position)) {
-        view.position.copy(oldPosition);
-      }
-
 		}
 
     { // apply zoom
