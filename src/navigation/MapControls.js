@@ -306,6 +306,24 @@ export class MapControls extends EventDispatcher {
   update(delta) {
     let view = this.scene.view;
 
+    { // apply zoom
+			let progression = Math.min(1, this.fadeFactor * delta);
+			let radius = view.radius + progression * this.radiusDelta;
+      if (this.radiusDelta < 0 && view.radius > 1 && this.scene.view.position.z < 2000 && view.pitch < -0.035) {
+        this.pitchDelta = -0.07;
+      }
+
+			let V = view.direction.multiplyScalar(-radius);
+			let position = new THREE.Vector3().addVectors(view.getPivot(), V);
+      if (this.radiusDelta < 0 && view.radius > 1 && this.scene.pointclouds != undefined && this.scene.pointclouds[0] != undefined && !this.scene.pointclouds[0].intersectsPoint(position)) {
+        view.radius = radius;
+        view.position.copy(position);
+      } else if (this.radiusDelta > 0 && position.z < this.minZoom) {
+        view.radius = radius;
+        view.position.copy(position);
+      }
+		}
+
     { // apply rotation
 			let progression = Math.min(1, this.fadeFactor * delta);
 
@@ -316,8 +334,8 @@ export class MapControls extends EventDispatcher {
 			yaw -= progression * this.yawDelta;
 			pitch -= progression * this.pitchDelta;
 
-			view.yaw = yaw;
       if (pitch < -0.035) {
+        view.yaw = yaw;
         view.pitch = pitch;
       }
 			
@@ -327,21 +345,6 @@ export class MapControls extends EventDispatcher {
         view.position.copy(position);
       } else {
         this.stop();
-      }
-		}
-
-    { // apply zoom
-			let progression = Math.min(1, this.fadeFactor * delta);
-			let radius = view.radius + progression * this.radiusDelta;
-
-			let V = view.direction.multiplyScalar(-radius);
-			let position = new THREE.Vector3().addVectors(view.getPivot(), V);
-      if (this.radiusDelta < 0 && view.radius > 1 && this.scene.pointclouds != undefined && this.scene.pointclouds[0] != undefined && !this.scene.pointclouds[0].intersectsPoint(position)) {
-        view.radius = radius;
-        view.position.copy(position);
-      } else if (this.radiusDelta > 0 && position.z < this.minZoom) {
-        view.radius = radius;
-        view.position.copy(position);
       }
 		}
 
