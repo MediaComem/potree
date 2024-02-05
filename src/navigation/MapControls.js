@@ -153,11 +153,8 @@ export class MapControls extends EventDispatcher {
 
     let onClick = (e) => {
       e.preventDefault();
-      if (this.nbDrag < 15) {
-        let vector = new THREE.Vector2(Math.round(e.x), Math.round(e.y));
-        this.zoomToLocation(vector);
-      }
-      this.nbDrag = 0;
+      let vector = new THREE.Vector2(Math.round(e.x), Math.round(e.y));
+      this.zoomToLocation(vector);
     };
 
     this.addEventListener('touchstart', onTouchDown);
@@ -190,6 +187,7 @@ export class MapControls extends EventDispatcher {
   }
 
   move(mouse, camStart, camera, view, domElement) {
+    console.log(domElement)
     let ray = Utils.mouseToRay(
       mouse,
       camera,
@@ -224,78 +222,81 @@ export class MapControls extends EventDispatcher {
   }
 
   zoomToLocation(mouse, shouldZoom = false) {
-    let camera = this.scene.getActiveCamera();
+    if (this.nbDrag < 15) {
+      let camera = this.scene.getActiveCamera();
 
-    let I = Utils.getMousePointCloudIntersection(
-      mouse,
-      camera,
-      this.viewer,
-      this.scene.pointclouds
-    );
-
-    if (I === null) {
-      return;
-    }
-
-    let targetRadius = 0;
-    {
-      let minimumJumpDistance = 0.2;
-
-      let domElement = this.renderer.domElement;
-      let ray = Utils.mouseToRay(
+      let I = Utils.getMousePointCloudIntersection(
         mouse,
         camera,
-        domElement.clientWidth,
-        domElement.clientHeight
+        this.viewer,
+        this.scene.pointclouds
       );
 
-      let nodes = I.pointcloud.nodesOnRay(I.pointcloud.visibleNodes, ray);
-      let lastNode = nodes[nodes.length - 1];
-      let radius = lastNode.getBoundingSphere(new THREE.Sphere()).radius;
-      targetRadius = Math.min(this.scene.view.radius, radius);
-      targetRadius = Math.max(minimumJumpDistance, targetRadius);
+      if (I === null) {
+        return;
+      }
+
+      let targetRadius = 0;
+      {
+        let minimumJumpDistance = 0.2;
+
+        let domElement = this.renderer.domElement;
+        let ray = Utils.mouseToRay(
+          mouse,
+          camera,
+          domElement.clientWidth,
+          domElement.clientHeight
+        );
+
+        let nodes = I.pointcloud.nodesOnRay(I.pointcloud.visibleNodes, ray);
+        let lastNode = nodes[nodes.length - 1];
+        let radius = lastNode.getBoundingSphere(new THREE.Sphere()).radius;
+        targetRadius = Math.min(this.scene.view.radius, radius);
+        targetRadius = Math.max(minimumJumpDistance, targetRadius);
+      }
+
+      let d = this.scene.view.direction.multiplyScalar(-1);
+      let cameraTargetPosition = new THREE.Vector3().addVectors(
+        I.location,
+        d.multiplyScalar(targetRadius)
+      );
+      cameraTargetPosition.z = this.scene.view.position.z / 2;
+
+      let animationDuration = 600;
+      let easing = TWEEN.Easing.Quartic.Out;
+
+      {
+        // animate
+        let value = { x: 0 };
+        let tween = new TWEEN.Tween(value).to({ x: 1 }, animationDuration);
+        tween.easing(easing);
+        this.tweens.push(tween);
+
+        let startPos = this.scene.view.position.clone();
+        let targetPos = cameraTargetPosition.clone();
+        let startRadius = this.scene.view.radius;
+        let targetRadius = cameraTargetPosition.distanceTo(I.location);
+
+        tween.onUpdate(() => {
+          let t = value.x;
+          this.scene.view.position.x = (1 - t) * startPos.x + t * targetPos.x;
+          this.scene.view.position.y = (1 - t) * startPos.y + t * targetPos.y;
+          if (shouldZoom && !this.scene.pointclouds[0].intersectsPoint(targetPos)) {
+            this.scene.view.position.z = (1 - t) * startPos.z + t * targetPos.z;
+          }
+
+          this.scene.view.radius = (1 - t) * startRadius + t * targetRadius;
+          this.viewer.setMoveSpeed(this.scene.view.radius / 2.5);
+        });
+
+        tween.onComplete(() => {
+          this.tweens = this.tweens.filter((e) => e !== tween);
+        });
+
+        tween.start();
+      }
     }
-
-    let d = this.scene.view.direction.multiplyScalar(-1);
-    let cameraTargetPosition = new THREE.Vector3().addVectors(
-      I.location,
-      d.multiplyScalar(targetRadius)
-    );
-    cameraTargetPosition.z = this.scene.view.position.z / 2;
-
-    let animationDuration = 600;
-    let easing = TWEEN.Easing.Quartic.Out;
-
-    {
-      // animate
-      let value = { x: 0 };
-      let tween = new TWEEN.Tween(value).to({ x: 1 }, animationDuration);
-      tween.easing(easing);
-      this.tweens.push(tween);
-
-      let startPos = this.scene.view.position.clone();
-      let targetPos = cameraTargetPosition.clone();
-      let startRadius = this.scene.view.radius;
-      let targetRadius = cameraTargetPosition.distanceTo(I.location);
-
-      tween.onUpdate(() => {
-        let t = value.x;
-        this.scene.view.position.x = (1 - t) * startPos.x + t * targetPos.x;
-        this.scene.view.position.y = (1 - t) * startPos.y + t * targetPos.y;
-        if (shouldZoom && !this.scene.pointclouds[0].intersectsPoint(targetPos)) {
-          this.scene.view.position.z = (1 - t) * startPos.z + t * targetPos.z;
-        }
-
-        this.scene.view.radius = (1 - t) * startRadius + t * targetRadius;
-        this.viewer.setMoveSpeed(this.scene.view.radius / 2.5);
-      });
-
-      tween.onComplete(() => {
-        this.tweens = this.tweens.filter((e) => e !== tween);
-      });
-
-      tween.start();
-    }
+    this.nbDrag = 0;
   }
 
   stopTweens () {
@@ -309,9 +310,9 @@ export class MapControls extends EventDispatcher {
     { // apply zoom
 			let progression = Math.min(1, this.fadeFactor * delta);
 			let radius = view.radius + progression * this.radiusDelta;
-      if (this.radiusDelta < 0 && view.radius > 1 && this.scene.view.position.z < 2000 && view.pitch < -0.035) {
-        this.pitchDelta = -0.07;
-      }
+      //if (this.radiusDelta < 0 && view.radius > 1 && this.scene.view.position.z < 2000 && view.pitch < -0.035) {
+        //this.pitchDelta = -0.07;
+      //}
 
 			let V = view.direction.multiplyScalar(-radius);
 			let position = new THREE.Vector3().addVectors(view.getPivot(), V);
