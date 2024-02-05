@@ -24,6 +24,7 @@ export class MapControls extends EventDispatcher {
     this.camStart = null;
 
     this.touch = null;
+    this.clickTimeout;
 
     this.radiusDelta = 0;
 
@@ -152,9 +153,11 @@ export class MapControls extends EventDispatcher {
 		};
 
     let onClick = (e) => {
-      e.preventDefault();
-      let vector = new THREE.Vector2(Math.round(e.x), Math.round(e.y));
-      this.zoomToLocation(vector);
+      this.clickTimeout = setTimeout(() => {
+        e.preventDefault();
+        let vector = new THREE.Vector2(Math.round(e.x), Math.round(e.y));
+        this.zoomToLocation(vector);
+      }, 50)
     };
 
     this.addEventListener('touchstart', onTouchDown);
@@ -164,6 +167,10 @@ export class MapControls extends EventDispatcher {
     this.addEventListener('mousewheel', scroll);
     this.addEventListener('mousedown', onMouseDown);
     this.addEventListener('mouseup', onMouseUp);
+    this.viewer.addEventListener('click_from_annotation', () => {
+      this.nbDrag = 50;
+      clearTimeout(this.clickTimeout)
+    });
 
     this.renderer.domElement.addEventListener('click', onClick, false);
     this.viewer.addEventListener('focusing_finished', () => {
@@ -187,7 +194,6 @@ export class MapControls extends EventDispatcher {
   }
 
   move(mouse, camStart, camera, view, domElement) {
-    console.log(domElement)
     let ray = Utils.mouseToRay(
       mouse,
       camera,
@@ -219,6 +225,12 @@ export class MapControls extends EventDispatcher {
         this.viewer.setMoveSpeed(speed);
       }
     }
+  }
+
+  tapEvent(vector, shouldZoom) {
+    this.clickTimeout = setTimeout(() => {
+      this.zoomToLocation(vector, shouldZoom);
+    }, 50);
   }
 
   zoomToLocation(mouse, shouldZoom = false) {
